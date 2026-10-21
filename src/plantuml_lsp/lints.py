@@ -14,7 +14,7 @@ from pathlib import Path
 from tree_sitter import Node
 
 from plantuml_lsp.index import Index
-from plantuml_lsp.parsing import node_text, parse
+from plantuml_lsp.parsing import NAME_TYPES, name_text, node_text, parse
 
 _INCLUDESUB = re.compile(r"^\s*!includesub\s+([^\s!]+)!(\w+)\s*$")
 _INCLUDE = re.compile(r"^\s*!include\s+(\S+)\s*$")
@@ -130,9 +130,9 @@ def _lint_unknown_endpoints(
     if node.type == "relation":
         for field_name in ("left", "right"):
             end = node.child_by_field_name(field_name)
-            if end is None or end.type not in ("identifier", "string"):
+            if end is None or end.type not in NAME_TYPES:
                 continue
-            name = node_text(src, end).strip('"')
+            name = name_text(src, end)
             short = name.rsplit(".", 1)[-1]
             if name not in index.entities and short not in index.entities:
                 lints.append(

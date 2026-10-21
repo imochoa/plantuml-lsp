@@ -9,7 +9,7 @@ document, matching PlantUML's own preprocessor semantics.
 import re
 from pathlib import Path
 
-from plantuml_lsp.parsing import node_text, parse
+from plantuml_lsp.parsing import name_text, node_text, parse
 
 _INCLUDESUB = re.compile(r"^\s*!includesub\s+([^\s!]+)!(\w+)\s*$")
 _INCLUDE = re.compile(r"^\s*!include\s+(\S+)\s*$")
@@ -47,7 +47,7 @@ def _relation_receiver(src: bytes, relation):
     receiver = relation.child_by_field_name("left" if reversed_ else "right")
     if receiver is None:
         return None
-    return node_text(src, receiver).strip('"')
+    return name_text(src, receiver)
 
 
 def call_at(src: bytes, row: int, col: int):

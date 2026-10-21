@@ -20,7 +20,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from plantuml_lsp.index import Entity, Index, _scan_occurrences, _walk
-from plantuml_lsp.parsing import node_text, parse
+from plantuml_lsp.parsing import NAME_TYPES, name_text, parse
 
 _EXTENSIONS = {".puml", ".plantuml", ".iuml", ".wsd"}
 # Hidden directories (relative to the root) are never part of the
@@ -184,8 +184,8 @@ class WorkspaceIndex:
 
 
 def _collect_names(node, src: bytes, names: set[str]) -> None:
-    if node.type in ("identifier", "string"):
-        names.add(node_text(src, node).strip('"'))
+    if node.type in NAME_TYPES:
+        names.add(name_text(src, node))
         return
     for child in node.children:
         _collect_names(child, src, names)
