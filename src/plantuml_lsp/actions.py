@@ -18,7 +18,7 @@ import re
 from pathlib import Path
 
 from plantuml_lsp.index import Entity
-from plantuml_lsp.parsing import node_text, parse
+from plantuml_lsp.parsing import name_text, parse
 from plantuml_lsp.workspace import WorkspaceIndex
 
 # (title, path, row, scol, ecol, new_text)
@@ -112,7 +112,7 @@ def _body_of_declaration_at(root, src: bytes, entity: Entity):
         if (
             name_node is not None
             and name_node.start_point[0] == entity.row
-            and node_text(src, name_node).strip('"') == entity.name
+            and name_text(src, name_node) == entity.name
         ):
             body = node.child_by_field_name("body")
             if body is not None:

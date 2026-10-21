@@ -2,7 +2,8 @@
 
 from tree_sitter import Node
 
-from plantuml_lsp.parsing import node_text, parse
+from plantuml_lsp.index import element_kind
+from plantuml_lsp.parsing import name_text, parse
 
 # (qualified_name, kind, start_line, start_col, end_line, end_col)
 SymbolTuple = tuple[str, str, int, int, int, int]
@@ -37,16 +38,27 @@ def _walk(node: Node, src: bytes, ns: list[str], found: list[SymbolTuple]) -> No
             _entry(".".join([*ns, _name_of(node, src)]), _ENTITY_KINDS[kind], node)
         )
     elif kind == "participant_declaration":
-        alias = node.child_by_field_name("alias")
-        target = alias if alias is not None else node.child_by_field_name("name")
-        found.append(_entry(node_text(src, target).strip('"'), "participant", node))
+        found.append(_entry(_id_of(node, src), "participant", node))
+    elif kind == "element_declaration":
+        # containers (node X { … }) scope their nested elements
+        name = _id_of(node, src)
+        found.append(_entry(".".join([*ns, name]), element_kind(node, src), node))
+        for child in node.children:
+            _walk(child, src, [*ns, name], found)
+        return
     for child in node.children:
         _walk(child, src, ns, found)
 
 
 def _name_of(node: Node, src: bytes) -> str:
     name = node.child_by_field_name("name")
-    return node_text(src, name).strip('"') if name is not None else "?"
+    return name_text(src, name) if name is not None else "?"
+
+
+def _id_of(node: Node, src: bytes) -> str:
+    """The alias when there is one: it is what relations reference."""
+    alias = node.child_by_field_name("alias")
+    return name_text(src, alias) if alias is not None else _name_of(node, src)
 
 
 def _entry(name: str, kind: str, node: Node) -> SymbolTuple:

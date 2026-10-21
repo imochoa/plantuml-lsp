@@ -16,7 +16,7 @@ from pathlib import Path
 
 from tree_sitter import Node
 
-from plantuml_lsp.parsing import node_text, parse
+from plantuml_lsp.parsing import NAME_TYPES, name_text, node_text, parse
 
 _INCLUDE_ANY = re.compile(r"^\s*!include(?:sub)?\s+([^\s!]+)")
 
@@ -82,8 +82,8 @@ def identifier_at(src: bytes, row: int, col: int) -> str | None:
     back to the identifier-shaped word at the cursor when the CST node
     is opaque (parameter payloads, member types, labels)."""
     node = parse(src).root_node.descendant_for_point_range((row, col), (row, col))
-    if node is not None and node.type in ("identifier", "string"):
-        return node_text(src, node).strip('"')
+    if node is not None and node.type in NAME_TYPES:
+        return name_text(src, node)
     return word_at(src, row, col)
 
 
@@ -185,15 +185,27 @@ def _declared_kind(node: Node, src: bytes) -> str | None:
         if kind_node is not None:
             return node_text(src, kind_node)
         return "entity" if node.type == "entity_declaration" else "participant"
+    if node.type == "element_declaration":
+        return element_kind(node, src)
     return None
+
+
+def element_kind(node: Node, src: bytes) -> str:
+    """The kind an element declares: its keyword, `interface` for the
+    `()` lollipop, `component` for the bare `[X]` shorthand."""
+    kind_node = node.child_by_field_name("kind")
+    if kind_node is None:
+        return "component"
+    kind = node_text(src, kind_node)
+    return "interface" if kind == "()" else kind
 
 
 def _record_relation(node: Node, src: bytes, index: Index) -> None:
     line = node_text(src, node).strip()
     for field_name in ("left", "right"):
         end = node.child_by_field_name(field_name)
-        if end is not None and end.type in ("identifier", "string"):
-            index.relations.setdefault(node_text(src, end).strip('"'), []).append(line)
+        if end is not None and end.type in NAME_TYPES:
+            index.relations.setdefault(name_text(src, end), []).append(line)
 
 
 def _add(index: Index, node: Node, src: bytes, path: str, kind: str) -> None:
@@ -202,10 +214,10 @@ def _add(index: Index, node: Node, src: bytes, path: str, kind: str) -> None:
         return
     alias_node = node.child_by_field_name("alias")
     id_node = alias_node if alias_node is not None else name_node
-    entity_id = node_text(src, id_node).strip('"')
+    entity_id = name_text(src, id_node)
     entity = Entity(
         id=entity_id,
-        name=node_text(src, name_node).strip('"'),
+        name=name_text(src, name_node),
         kind=kind,
         path=path,
         row=id_node.start_point[0],
@@ -274,13 +286,13 @@ def _scan_occurrences(
     path: str,
     found: list[tuple[str, int, int, int]],
 ) -> None:
-    if node.type in ("identifier", "string"):
-        text = node_text(src, node).strip('"')
+    if node.type in NAME_TYPES:
+        text = name_text(src, node)
         if text == entity_id:
             found.append(
                 (path, node.start_point[0], node.start_point[1], node.end_point[1])
             )
-        elif text.endswith("." + entity_id):
+        elif node.type != "bracket_name" and text.endswith("." + entity_id):
             # qualified use: report the span of the tail segment only,
             # so references highlight and renames rewrite just the name
             offset = (node.end_point[1] - node.start_point[1]) - len(entity_id)
